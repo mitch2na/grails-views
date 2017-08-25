@@ -29,6 +29,7 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven { url "https://repo.grails.org/grails/core" }
 }
@@ -41,6 +42,8 @@ dependencies {
     api "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
     provided "javax.servlet:javax.servlet-api:$servletApiVersion"
 
+    testCompile "org.spockframework:spock-core:1.0-groovy-2.4"
+    testCompile "org.javassist:javassist:3.21.0-GA"
 }
 
 task sourcesJar(type:Jar) {
