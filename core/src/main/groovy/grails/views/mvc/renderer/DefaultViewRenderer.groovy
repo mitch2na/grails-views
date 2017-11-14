@@ -11,7 +11,6 @@ import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import org.grails.plugins.web.rest.render.ServletRenderContext
 import org.grails.plugins.web.rest.render.html.DefaultHtmlRenderer
-import org.springframework.web.servlet.View
 import org.springframework.web.servlet.view.AbstractUrlBasedView
 
 /**
@@ -34,7 +33,7 @@ abstract class DefaultViewRenderer<T> extends DefaultHtmlRenderer<T> {
 
 
     DefaultViewRenderer(Class<T> targetType, MimeType mimeType, SmartViewResolver viewResolver, ProxyHandler proxyHandler, RendererRegistry rendererRegistry, Renderer defaultRenderer) {
-        super(targetType,mimeType)
+        super(targetType, mimeType)
         this.viewResolver = viewResolver
         this.proxyHandler = proxyHandler
         this.rendererRegistry = rendererRegistry
@@ -47,10 +46,9 @@ abstract class DefaultViewRenderer<T> extends DefaultHtmlRenderer<T> {
         def arguments = context.arguments
         def ct = arguments?.contentType
 
-        if(ct) {
+        if (ct) {
             context.setContentType(ct.toString())
-        }
-        else {
+        } else {
             final mimeType = context.acceptMimeType ?: mimeTypes[0]
             if (!mimeType.equals(MimeType.ALL)) {
                 context.setContentType(mimeType.name)
@@ -60,8 +58,7 @@ abstract class DefaultViewRenderer<T> extends DefaultHtmlRenderer<T> {
         String viewName
         if (arguments?.view) {
             viewName = arguments.view.toString()
-        }
-        else {
+        } else {
             viewName = context.actionName
         }
 
@@ -69,7 +66,7 @@ abstract class DefaultViewRenderer<T> extends DefaultHtmlRenderer<T> {
         if (viewName?.startsWith('/')) {
             viewUri = viewName
         } else {
-           viewUri = "/${context.controllerName}/${viewName}"
+            viewUri = "/${context.controllerName}/${viewName}"
         }
 
         def webRequest = ((ServletRenderContext) context).getWebRequest()
@@ -80,42 +77,63 @@ abstract class DefaultViewRenderer<T> extends DefaultHtmlRenderer<T> {
         def request = webRequest.currentRequest
         def response = webRequest.currentResponse
 
-        AbstractUrlBasedView view = (AbstractUrlBasedView)viewResolver.resolveView(viewUri, request, response)
-        if(view == null) {
-            if(proxyHandler != null) {
-                object = (T)proxyHandler.unwrapIfProxy(object)
+        AbstractUrlBasedView view = (AbstractUrlBasedView) viewResolver.resolveView(viewUri, request, response)
+        if (view == null) {
+            if (proxyHandler != null) {
+                object = (T) proxyHandler.unwrapIfProxy(object)
             }
 
             def cls = object.getClass()
             // Try resolve template. Example /book/_book
-            view = (AbstractUrlBasedView)viewResolver.resolveView(cls, request, response)
+            view = (AbstractUrlBasedView) viewResolver.resolveView(cls, request, response)
         }
 
-        if(view != null) {
+        // Try resolve controller class name as camel case
+        if (view == null && webRequest.controllerClass) {
+            String name = webRequest.controllerClass.name
+            def camelCase = name.substring(0, 1).toLowerCase() + name.substring(1)
+            view = (AbstractUrlBasedView) viewResolver.resolveView("/${camelCase}/${viewName}", request, response)
+        }
+
+        if (view == null && context.controllerName) {
+            String name = kebabToCamelCase(context.controllerName)
+            view = (AbstractUrlBasedView) viewResolver.resolveView("/${name}/${viewName}", request, response)
+        }
+
+        if (view != null) {
             Map<String, Object> model
-            if(object instanceof Map) {
+            if (object instanceof Map) {
                 def map = (Map) object
                 model = map
-                if(view == viewResolver.objectView) {
+                if (view == viewResolver.objectView) {
                     // avoid stack overflow by making a copy of the map
                     model.put(MODEL_OBJECT, new LinkedHashMap(map))
                 }
 
-            }
-            else {
+            } else {
                 model = [(resolveModelVariableName(object)): object]
-                if(view == viewResolver.objectView) {
+                if (view == viewResolver.objectView) {
                     model.put(MODEL_OBJECT, object)
                 }
             }
             view.render(model, request, response)
-        }
-        else {
+        } else {
             defaultRenderer.render(object, context)
         }
     }
 
     public static String templateNameForClass(Class<?> cls) {
         TemplateResolverUtils.shortTemplateNameForClass(cls)
+    }
+
+    private static String kebabToCamelCase(String str) {
+        String camelCase = ""
+        String[] parts = str.split("-")
+        for (String part : parts) {
+            String allLower = part.toLowerCase()
+            int a = allLower.length()
+            camelCase = camelCase + allLower.substring(0, 1).toUpperCase() + allLower.substring(1, a)
+        }
+        return camelCase.substring(0, 1).toLowerCase() + camelCase.substring(1)
     }
 }
